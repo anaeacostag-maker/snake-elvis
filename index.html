@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake de cumpleaños 🎂</title>
+<style>
+  :root { --pink:#ff6f91; --purple:#7b61a8; --cream:#fff8f0; --ink:#382b48; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; display:flex; justify-content:center; align-items:center;
+    padding:18px; background:radial-gradient(circle at top,#ffe0eb,#f4eaff 58%,#fff8f0);
+    color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,sans-serif; }
+  .card { width:min(100%,520px); text-align:center; background:#ffffffd9; border:2px solid white;
+    border-radius:28px; padding:22px; box-shadow:0 16px 50px #8a5ca522; }
+  h1 { margin:0 0 4px; font-size:clamp(1.7rem,6vw,2.4rem); }
+  .sub { margin:0 0 16px; color:#766781; }
+  .stats { display:flex; justify-content:space-between; gap:12px; margin:12px 0; font-weight:700; }
+  canvas { display:block; width:100%; max-width:420px; aspect-ratio:1; margin:auto; border-radius:18px;
+    border:3px solid #fff; background:#fff9fc; box-shadow:inset 0 0 0 1px #f3d6e5; touch-action:none; }
+  .message { min-height:48px; padding:12px 4px 4px; font-weight:650; }
+  button { border:0; border-radius:999px; background:var(--pink); color:white; font-size:1rem;
+    font-weight:750; padding:12px 20px; cursor:pointer; box-shadow:0 5px 0 #d84c75; }
+  button:active { transform:translateY(3px); box-shadow:0 2px 0 #d84c75; }
+  .controls { display:grid; grid-template-columns:repeat(3,58px); grid-template-rows:repeat(2,48px);
+    gap:7px; justify-content:center; margin:16px auto 12px; }
+  .controls button { padding:0; border-radius:14px; font-size:1.3rem; background:var(--purple); box-shadow:0 4px 0 #58417f; }
+  .controls .up { grid-column:2; grid-row:1; }
+  .controls .left { grid-column:1; grid-row:2; }
+  .controls .down { grid-column:2; grid-row:2; }
+  .controls .right { grid-column:3; grid-row:2; }
+  .hint { font-size:.82rem; color:#887b91; margin:8px 0 0; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>🎉 ¡Snake de cumpleaños, Elvis! 🎂</h1>
+  <p class="sub">Atrapa los pastelitos y prepara la celebración.</p>
+  <div class="stats"><span>🧁 Pastelitos: <span id="score">0</span>/5</span><span>🏆 Récord: <span id="best">0</span></span></div>
+  <canvas id="game" width="420" height="420" aria-label="Juego Snake de cumpleaños"></canvas>
+  <div class="message" id="message">Pulsa «Jugar» y usa las flechas para moverte.</div>
+  <button id="start">¡Jugar! 💖</button>
+  <div class="controls" aria-label="Controles táctiles">
+    <button class="up" data-dir="up" aria-label="Arriba">▲</button>
+    <button class="left" data-dir="left" aria-label="Izquierda">◀</button>
+    <button class="down" data-dir="down" aria-label="Abajo">▼</button>
+    <button class="right" data-dir="right" aria-label="Derecha">▶</button>
+  </div>
+  <p class="hint">También puedes deslizar el dedo sobre el tablero. ¡No choques contigo misma!</p>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score'), bestEl = document.getElementById('best');
+  const message = document.getElementById('message'), startBtn = document.getElementById('start');
+  const N = 21, CELL = 20, GOAL = 5;
+  let snake, dir, nextDir, cake, score, timer, running = false, ended = false;
+  let best = 0;
+  bestEl.textContent = best;
+
+  function reset() {
+    snake = [{x:9,y:10},{x:8,y:10},{x:7,y:10}];
+    dir = {x:1,y:0}; nextDir = {x:1,y:0}; score = 0;
+    scoreEl.textContent = score; cake = spawnCake(); ended = false;
+    draw(); message.textContent = '¡A por esos pastelitos! 🧁'; startBtn.textContent = 'Reiniciar ↻';
+  }
+  function spawnCake() {
+    let p;
+    do { p = {x:Math.floor(Math.random()*N), y:Math.floor(Math.random()*N)}; }
+    while (snake && snake.some(s => s.x===p.x && s.y===p.y));
+    return p;
+  }
+  function setDirection(d) {
+    if (!running) return;
+    const dirs = {up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+    const nd = dirs[d];
+    if (nd && !(nd.x === -dir.x && nd.y === -dir.y)) nextDir = nd;
+  }
+  function tick() {
+    if (!running) return;
+    dir = nextDir;
+    const head = {x:snake[0].x+dir.x, y:snake[0].y+dir.y};
+    const eating = head.x===cake.x && head.y===cake.y;
+    const body = eating ? snake : snake.slice(0,-1);
+    if (head.x<0 || head.y<0 || head.x>=N || head.y>=N || body.some(s=>s.x===head.x && s.y===head.y)) {
+      running = false; ended = true;
+      message.textContent = `¡Casi! Conseguistes ${score} de ${GOAL} pastelitos. Inténtalo otra vez 💕`;
+      startBtn.textContent = 'Volver a jugar';
+      draw(); return;
+    }
+    snake.unshift(head);
+    if (eating) {
+      score++; scoreEl.textContent = score;
+      if (score > best) { best = score; bestEl.textContent = best; /* récord durante esta partida; no requiere almacenamiento del navegador */ }
+      if (score >= GOAL) {
+        running = false; ended = true;
+        message.textContent = '🎉 ¡FELIZ CUMPLEAÑOS, ELVIS! 🎂 Que tu día esté lleno de alegría, amor y muchos deseos cumplidos, Elvis. 💖';
+        startBtn.textContent = 'Jugar otra vez';
+        draw(true); confetti(); return;
+      }
+      cake = spawnCake();
+    } else snake.pop();
+    draw(); timer = setTimeout(tick, Math.max(78,145-score*8));
+  }
+  function roundedRect(x,y,w,h,r,color) {
+    ctx.fillStyle=color; ctx.beginPath();
+    const rr=Math.min(r,w/2,h/2);
+    ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath(); ctx.fill();
+  }
+  function draw(win=false) {
+    ctx.clearRect(0,0,420,420);
+    ctx.fillStyle='#fff9fc'; ctx.fillRect(0,0,420,420);
+    ctx.strokeStyle='#f7e6ef'; ctx.lineWidth=1;
+    for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,420);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(420,i*CELL);ctx.stroke();}
+    if(cake) { ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🧁',cake.x*CELL+10,cake.y*CELL+10); }
+    snake.forEach((s,i)=> {
+      roundedRect(s.x*CELL+2,s.y*CELL+2,CELL-4,CELL-4,6,i===0?'#ff6f91':'#a78bdb');
+    });
+    const h=snake[0];
+    ctx.fillStyle='white';
+    if(dir.x!==0) {ctx.beginPath();ctx.arc(h.x*CELL+10,h.y*CELL+7,2.3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(h.x*CELL+10,h.y*CELL+13,2.3,0,Math.PI*2);ctx.fill();}
+    else {ctx.beginPath();ctx.arc(h.x*CELL+7,h.y*CELL+10,2.3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(h.x*CELL+13,h.y*CELL+10,2.3,0,Math.PI*2);ctx.fill();}
+    if(win) { ctx.fillStyle='#ffffffdf';ctx.fillRect(24,156,372,108);ctx.fillStyle='#7b61a8';ctx.font='bold 24px system-ui';ctx.fillText('¡FELIZ CUMPLEAÑOS, ELVIS!',210,195);ctx.font='32px serif';ctx.fillText('🎉 🎂 🎁 💖',210,235); }
+  }
+  function confetti() {
+    const emojis=['🎉','✨','💖','🎈','🎂','⭐'];
+    let i=0; const interval=setInterval(()=> {
+      message.textContent = emojis.slice(0,3+(i%4)).join(' ') + ' ¡FELIZ CUMPLEAÑOS, ELVIS! ' + emojis[(i+2)%emojis.length];
+      i++; if(i>8) clearInterval(interval);
+    },450);
+  }
+  startBtn.addEventListener('click',()=> {clearTimeout(timer);reset();running=true;tick();});
+  document.addEventListener('keydown',e=>{
+    const map={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};
+    if(map[e.key]) {e.preventDefault();setDirection(map[e.key]);}
+    if((e.key===' '||e.key==='Enter')&&!running) {clearTimeout(timer);reset();running=true;tick();}
+  });
+  document.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>setDirection(b.dataset.dir)));
+  let touchStart=null;
+  canvas.addEventListener('touchstart',e=>{const t=e.changedTouches[0];touchStart={x:t.clientX,y:t.clientY};},{passive:true});
+  canvas.addEventListener('touchend',e=>{
+    if(!touchStart)return; const t=e.changedTouches[0], dx=t.clientX-touchStart.x, dy=t.clientY-touchStart.y;
+    if(Math.max(Math.abs(dx),Math.abs(dy))>18) setDirection(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+    touchStart=null;
+  },{passive:true});
+  reset(); message.textContent='Pulsa «¡Jugar!» para comenzar. ¡Atrapa 5 pastelitos! 🎂';
+})();
+</script>
+</body>
+</html>
